@@ -1,54 +1,50 @@
-library(evoTS)
-
-## Create a multivariate dataset
-Rmatrix = as.matrix(read.csv("2mod.csv", header = F))
-
-##Custom function
-#annotations at modifications from original
-sim.multi.URW.update <- function (ns = 30, anc = c(0, 0), R = matrix(c(0.5, 0, 0, 0.5), 
-                                                                     nrow = 2, byrow = TRUE), vp = 0.1, nn = rep(30, ns), 
-                                  tt = 0:(ns - 1)) 
-{
-  m <- ncol(R) #number of traits
-  MM <- matrix(nrow = ncol(R), ncol = ns)
-  mm <- matrix(nrow = ncol(R), ncol = ns)
-  vv <- matrix(nrow = ncol(R), ncol = ns)
-  time <- tt/max(tt)
-  dt <- diff(time)
-  Chol <- chol(R)
-  temp <- MASS::mvrnorm(n = (ns), mu = rep(0, m), Sigma = ((t(Chol) %*% 
-                                                              Chol) * (dt[1])))
-  for (i in 1:m) {
-    MM[i, c(1:ns)] <- cumsum(c(temp[, i]))
-    mm[i, c(1:ns)] <- MM[i, c(1:ns)] + rnorm(ns, 0, sqrt(vp/nn))
-    vv[i, c(1:ns)] <- rep(vp, (ns)) + rnorm(ns, 0, 0.5) ##add stochastic component to variance
+####FROM SCRATCH
+sim.pop <- function(n, Bs, Bm, Bx) {
+ y <- matrix(nrow =  n, ncol = 4)
+ colnames(y) <- c("Juvenile Shape", "Slope", "Duration", "Adult Shape")
+  for (i in 1:n) {
+y[i,1] <- Bs + rnorm(1, mean = 0, sd = 1) #mean juvenile shape plus variation
+y[i,2] <- Bm + rnorm(1, mean = 0, sd = 1) #mean slope plus variation
+y[i,3] <- Bx + rnorm(1, mean = 0, sd = 1) #mean duration plus variation
+y[i,4] <- y[i,1] + y[i,2] * y[i,3] #set of adult morphologies
   }
-  MM <- MM + anc
-  mm <- mm + anc
-  List <- list()
-  for (i in 1:m) {
-    List[[i]] <- paleoTS::as.paleoTS(mm = mm[i, ], vv = vv[i, 
-    ], nn = nn, tt = time, MM = MM[i, ], label = "Created by sim.multi.BM", 
-    reset.time = FALSE)
-  }
-  if (m == 2) 
-    yy <- make.multivar.evoTS(List[[1]], List[[2]])
-  if (m == 3) 
-    yy <- make.multivar.evoTS(List[[1]], List[[2]], List[[3]])
-  if (m == 4) 
-    yy <- make.multivar.evoTS(List[[1]], List[[2]], List[[3]], 
-                              List[[4]])
-  if (m == 5) 
-    yy <- make.multivar.evoTS(List[[1]], List[[2]], List[[3]], 
-                              List[[4]], List[[5]])
-  if (m == 10) # allow 10 traits
-    yy <- make.multivar.evoTS(List[[1]], List[[2]], List[[3]], 
-                              List[[4]], List[[5]], List[[6]], 
-                              List[[7]], List[[8]], List[[9]], 
-                              List[[10]])
-  return(yy)
+  return(y)
 }
-data_set<-sim.multi.URW.update(ns=50, anc=c(1:10),R = Rmatrix, vp=2, nn=rep(30,50),tt=(0:49))
 
-## plot the data
-plotevoTS.multivariate(data_set)
+test <- sim.pop(30, 1, 2, 6)
+test
+test2 <-  sim.pop(30,1,2,3)
+test2
+
+testlist <- vector("list", length=2)
+testlist[[1]] <- test
+testlist[[2]] <- test2
+
+testlist[[1]][8,2]
+
+sim.pop.multiT <- function(n, Bs, Bm, Bx, t) {  #multiple distinct segments of trajectory
+  Y <-vector("list", length = t)
+  Y[[1]] <- matrix(nrow = n, ncol = 4)
+  colnames(Y[[1]]) <- c("Juvenile Shape", "Slope", "Duration", "End Shape")
+  for (i in 1:n) {
+    Y[[1]][i,1] <- Bs + rnorm(1, mean = 0, sd = 1)
+    Y[[1]][i,2] <- Bm[[1]] + rnorm(1, mean = 0, sd = 1)
+    Y[[1]][i,3] <- Bx[[1]] + rnorm(1, mean = 0, sd = 1)
+    Y[[1]][i,4] <- Y[[1]][i,1] + Y[[1]][i,2] * Y[[1]][i,3]
+  }
+  for (e in 2:(t)) {
+    Y[[e]] <- matrix(nrow = n, ncol = 4)
+    colnames(Y[[e]]) <- c("Start Shape", "Slope", "Duration", "End Shape")
+    for (i in 1:n) {
+      Y[[e]][i,1] <- Y[[e-1]][i,4]
+      Y[[e]][i,2] <- Bm[[e]] + rnorm(1, mean = 0, sd = 1)
+      Y[[e]][i,3] <- Bx[[e]] + rnorm(1, mean = 0, sd = 1)
+      Y[[e]][i,4] <- Y[[e]][i,1] + Y[[e]][i,2] * Y[[e]][i,3]
+    }
+  }
+  colnames(Y[[t]])[4] <- c("Adult Shape")
+  return(Y)
+}
+
+testmultiT  <- sim.pop.multiT(n = 30, Bs = 1, Bm = c(1,2,3), Bx = c(1,2,3), t = 3) #slope and duration arguments must be lists of length t (number of segments)
+testmultiT
