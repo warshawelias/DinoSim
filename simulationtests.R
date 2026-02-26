@@ -4,8 +4,8 @@ sim.pop <- function(n, Bs, Bm, Bx) {
  colnames(y) <- c("Juvenile Shape", "Slope", "Duration", "Adult Shape")
   for (i in 1:n) {
 y[i,1] <- Bs + rnorm(1, mean = 0, sd = 1) #mean juvenile shape plus variation
-y[i,2] <- Bm + rnorm(1, mean = 0, sd = 1) #mean slope plus variation
-y[i,3] <- Bx + rnorm(1, mean = 0, sd = 1) #mean duration plus variation
+y[i,2] <- Bm + rnorm(1, mean = 5, sd = 1) #mean slope plus variation
+y[i,3] <- Bx + rnorm(1, mean = 5, sd = 1) #mean duration plus variation
 y[i,4] <- y[i,1] + y[i,2] * y[i,3] #set of adult morphologies
   }
   return(y)
@@ -28,8 +28,8 @@ sim.pop.multiT <- function(n, Bs, Bm, Bx, t) {  #multiple distinct segments of t
   colnames(Y[[1]]) <- c("Juvenile Shape", "Slope", "Duration", "End Shape")
   for (i in 1:n) {
     Y[[1]][i,1] <- Bs + rnorm(1, mean = 0, sd = 1)
-    Y[[1]][i,2] <- Bm[[1]] + rnorm(1, mean = 0, sd = 1)
-    Y[[1]][i,3] <- Bx[[1]] + rnorm(1, mean = 0, sd = 1)
+    Y[[1]][i,2] <- Bm[[1]] + rnorm(1, mean = 5, sd = 1)
+    Y[[1]][i,3] <- Bx[[1]] + rnorm(1, mean = 5, sd = 1)
     Y[[1]][i,4] <- Y[[1]][i,1] + Y[[1]][i,2] * Y[[1]][i,3]
   }
   for (e in 2:(t)) {
@@ -37,8 +37,8 @@ sim.pop.multiT <- function(n, Bs, Bm, Bx, t) {  #multiple distinct segments of t
     colnames(Y[[e]]) <- c("Start Shape", "Slope", "Duration", "End Shape")
     for (i in 1:n) {
       Y[[e]][i,1] <- Y[[e-1]][i,4]
-      Y[[e]][i,2] <- Bm[[e]] + rnorm(1, mean = 0, sd = 1)
-      Y[[e]][i,3] <- Bx[[e]] + rnorm(1, mean = 0, sd = 1)
+      Y[[e]][i,2] <- Bm[[e]] + rnorm(1, mean = 5, sd = 1)
+      Y[[e]][i,3] <- Bx[[e]] + rnorm(1, mean = 5, sd = 1)
       Y[[e]][i,4] <- Y[[e]][i,1] + Y[[e]][i,2] * Y[[e]][i,3]
     }
   }
@@ -48,3 +48,22 @@ sim.pop.multiT <- function(n, Bs, Bm, Bx, t) {  #multiple distinct segments of t
 
 testmultiT  <- sim.pop.multiT(n = 30, Bs = 1, Bm = c(1,2,3), Bx = c(1,2,3), t = 3) #slope and duration arguments must be lists of length t (number of segments)
 testmultiT
+multiTplotsetX <- matrix(ncol=4,nrow=30)
+colnames(multiTplotsetX) <- c("Juvenile shape", "T1 Shape", "T2 Shape", "Adult Shape")
+multiTplotsetX[1:30,1] <- testmultiT[[1]][1:30,1]
+multiTplotsetX[1:30,2] <- testmultiT[[2]][1:30,1]
+multiTplotsetX[1:30,3] <- testmultiT[[2]][1:30,4]
+multiTplotsetX[1:30,4] <- testmultiT[[3]][1:30,4]
+
+multiTplotsetY <- matrix(ncol=4,nrow=30)
+colnames(multiTplotsetY) <- c("1", "2", "3", "4")
+multiTplotsetY[1:30,1] <- rep(0,30)
+multiTplotsetY[1:30,2] <- testmultiT[[1]][1:30,3]
+multiTplotsetY[1:30,3] <- multiTplotsetY[1:30,2] + testmultiT[[2]][1:30,3]
+multiTplotsetY[1:30,4] <- multiTplotsetY[1:30,3] + testmultiT[[3]][1:30,3]
+
+plot(multiTplotsetX,multiTplotsetY)
+
+library(ggplot2)
+
+
