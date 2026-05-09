@@ -79,39 +79,79 @@ long <- sim.pop.multiT(n = 100, Bs = 1, Bm = c(5,5,5), Bx = c(10,10,10), t = 3) 
 longplotset <- make.multiTplotset(long)
 plotbouquet(longplotset,"darkblue",c("darkslategray2","darkslategray3","darkslategray4","darkslategrey"), xlim =c(0,200), ylim = c(0,40),cex=2)
 
-extract.bouquet.var <- function(x, #adult trait data set
-                                t,  #number of ontogeny segments
-                                sd = 1, #standard deviation of stochastic components
-                                Bmr, #range of slopes to test
-                                ){
-  
-  Bm <- sample(Bmr, length(Bmr), size=1, replace=TRUE)
-  sim.pop.multiT(n, 0, Bm, Bx, t)
-}
+###Parameter Estimation
+library(tidyverse)
+library(tidybayes)
+library(rethinking)
+library(cmdstanr)
+#rebuild_cmdstan(cores=2)
+#set_cmdstan_path(path="C:/Users/warsh/.cmdstan/cmdstan-2.38.0")
 
-bouquet.statmodel.SLOPE <- function(x, #adult trait data set
-                                    t,  #number of ontogeny segments
-                                    sd = 1, #standard deviation of stochastic components
-                                    Bm0, #slope estimate
-                                    iter #number of simulated data sets to create
-                                    ){
-  n = nrow(x)
-  Bx = mean(x[1:n,2])
-  simdata <- matrix(nrow = iter, ncol = 2)
-  for(i in 1:iter){
-    Bm <- Bm0 + rnorm(1, mean = 0, sd = 1)
-    bouquet <- sim.pop.multiT(n,0,rep(Bm,t),rep(Bx,t),t)
-    simdata[i,1] <- var(bouquet[[t]][1:n,4])
-    simdata[i,2] <- Bm
-  }
-  regression <- lm(simdata[,1]~simdata[,2]) #correlation between ontogeny slope and adult trait variance
-  estimate <- (var(x[,1]) - regression[["coefficients"]][1])/regression[["coefficients"]][2] #estimate of ontogeny slope from empirical data
-  print(estimate)
-  return(simdata)
-}
+ulambaseline <- data.frame(baseline[[3]][,4],(baseline[[1]][,3] + baseline[[2]][,3] + baseline[[3]][,3]))
+colnames(ulambaseline) <- c("Shape","Age")
+ulamsteep <- data.frame(steep[[3]][,4],(steep[[1]][,3] + steep[[2]][,3] + steep[[3]][,3]))
+colnames(ulamsteep) <- c("Shape","Age")
+ulamlong <- data.frame(long[[3]][,4],(long[[1]][,3] + long[[2]][,3] + long[[3]][,3]))
+colnames(ulamlong) <- c("Shape","Age")
 
-statmodeltest <- matrix(nrow =  100, ncol = 2)
-statmodeltest[1:100,1] <- baseline[[3]][1:100,4]
-statmodeltest[1:100,2] <- baseline[[3]][1:100,3]
+flist1T <- alist(Shape  ~ dnorm(a2,sigma),
+                 a2 <- a + (Age * Slope),
+                 sigma ~ dunif(5,15),
+                 a ~ dnorm(0,1),
+                 Slope ~ dnorm(10,5)    
+)
 
-testmodel <- bouquet.statmodel.SLOPE(statmodeltest,3,Bm0=5,iter=1000)
+test.ulambaseline <- ulam(flist1T,data=ulambaseline,cores = 4, chains = 4, iter = 2000)
+precis(test.ulambaseline)
+plot(test.ulambaseline)
+
+test.ulamsteep <- ulam(flist1T, data=ulamsteep, cores = 4, chains =4, iter = 2000)
+precis(test.ulamsteep)
+plot(test.ulamsteep)
+
+test.ulamlong <- ulam(flist1T, data = ulamlong, cores = 4, chains = 4, iter = 2000)
+precis(test.ulamlong)
+plot(test.ulamlong)
+
+###Empirical Tests
+library(geomorph)
+
+
+croc.landmarks <- readland.tps(file = "Extant_Croc_Dorsal.tps", specID = "imageID")
+croc.landmarks
+crocgpa <- gpagen(croc.landmarks)
+crocgpa
+coords <- crocgpa$coords
+coords
+PCA <- gm.prcomp(coords)
+PCAscores <- as.data.frame(PCA$x)
+PCAscores
+
+crocmetadata <-  read.csv(file = "Extant_Croc_Covariates.csv")
+crocmetadata
+
+croctotal <- cbind(crocmetadata,PCAscores,log(crocgpa$Csize))
+colnames(croctotal)[colnames(croctotal) == "log(crocgpa$Csize)"] <- "logCsize"
+niloticus <- filter(croctotal,Species == "C. niloticus")
+
+niloticus.ulam <- niloticus[,14:38] #PC scores for all nile croc specimens
+niloticus.adults <- filter(niloticus, Age == "Adult" | Age =="Subadult")
+niloticus.adultsulam <- niloticus.adults[,14:38]
+
+nilelistUV <- alist(Comp1 ~ dnorm(a2,sigma),
+                    a2 <- a + (logCsize * Slope),
+                    sigma ~ dunif(0,0.1),
+                    a ~ dnorm(-0.02,0.5),
+                    Slope ~ dnorm(10,5)
+                    )
+test.ulamnileUV <- ulam(nilelistUV, data=niloticus.adultsulam, cores = 4, chains = 4, iter = 2000)
+precis(test.ulamnileUV)
+
+nilelistMV <- alist(Comp1:Comp2 ~ multi_normal(adult, diag(2),sigma),
+                    adult <- a + (logCsize * Slope),
+                    sigma ~ dunif(0,1),
+                    a ~ multi_normal(rep(-0.02,2),diag(2),rep(0.5,2)),
+                    Slope ~ multi_normal(rep(5,2),diag(2),rep(2,2))
+                    )
+test.ulamnileMV <- ulam(nilelistMV, data=niloticus.ulam, cores = 4, chains = 4, iter = 2000)
+precis(test.ulamnileMV)
